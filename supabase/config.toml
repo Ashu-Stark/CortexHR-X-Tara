@@ -1,0 +1,49 @@
+project_id = "cjfpimkuulgpxodtzohw"
+
+[functions.parse-resume]
+verify_jwt = false
+
+[functions.parse-resume-ai]
+verify_jwt = false
+
+[functions.send-email]
+verify_jwt = false
+
+[functions.schedule-interview]
+verify_jwt = false
+
+[functions.auto-process-application]
+verify_jwt = false
+
+[functions.extract-pdf-text]
+verify_jwt = false
+
+[functions.hr-chat]
+verify_jwt = false
+
+[functions.generate-interview-questions]
+verify_jwt = true
+
+[functions.generate-email-draft]
+verify_jwt = true
+
+[functions.send-offer-letter]
+verify_jwt = false
+
+[functions.google-auth-callback]
+verify_jwt = false
+
+[functions.google-calendar]
+verify_jwt = false
+
+[functions.ingest-email-resume]
+verify_jwt = false
+
+[functions.poll-gmail-resumes]
+verify_jwt = false
+
+[functions.analyze-portfolio]
+verify_jwt = false
+
+[functions.slack-notify]
+verify_jwt = false

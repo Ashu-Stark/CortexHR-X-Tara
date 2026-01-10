@@ -433,13 +433,39 @@ Analyze thoroughly and return ONLY valid JSON. Ensure the score is the exact sum
 
     let analysisText: string = '';
 
-    try {
-      analysisText = await createAICompletion(messages, provider);
-      if (!analysisText) throw new Error('No analysis content received from AI');
-      console.log('AI response received, parsing...');
-    } catch (aiError) {
-      console.error('AI Completion failed:', aiError);
-      // Fallthrough to fallback logic below
+    let analysisText: string = '';
+
+    // Define fallback order
+    const priorityOrder: AIProvider[] = ['groq', 'mistral', 'google', 'openai', 'lovable'];
+
+    for (const p of priorityOrder) {
+      // Check if provider has key configured
+      let hasKey = false;
+      if (p === 'groq' && Deno.env.get('GROQ_API_KEY')) hasKey = true;
+      else if (p === 'mistral' && Deno.env.get('MISTRAL_API_KEY')) hasKey = true;
+      else if (p === 'google' && (Deno.env.get('GOOGLE_API_KEY') || Deno.env.get('GOOGLE_AI_API_KEY'))) hasKey = true;
+      else if (p === 'openai' && (Deno.env.get('OPENAI_API_KEY') || Deno.env.get('openAI'))) hasKey = true;
+      else if (p === 'lovable' && Deno.env.get('LOVABLE_API_KEY')) hasKey = true;
+
+      if (!hasKey) continue;
+
+      try {
+        console.log(`Attempting analysis with provider: ${p}`);
+        analysisText = await createAICompletion(messages, p);
+
+        if (analysisText) {
+          console.log(`Success with ${p}`);
+          break; // Stop if successful
+        }
+      } catch (aiError) {
+        console.error(`Provider ${p} failed:`, aiError);
+        // Continue to next provider
+      }
+    }
+
+    if (!analysisText) {
+      console.error('All AI providers failed to generate text.');
+      // This will trigger the fallback JSON logic below
     }
 
     // Parse JSON response or use fallback

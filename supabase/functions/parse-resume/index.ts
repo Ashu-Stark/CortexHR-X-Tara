@@ -315,6 +315,23 @@ Return ONLY valid JSON without markdown formatting.`;
     // Truncate resume text to prevent context window issues (approx 6-8k tokens)
     const truncatedResumeText = resumeText ? resumeText.substring(0, 30000) : '';
 
+    if (!truncatedResumeText && !githubData?.user) {
+      console.error('No resume text and no GitHub data found. Returning 0 score.');
+      // Return a controlled "0" score instead of random error
+      return new Response(
+        JSON.stringify({
+          success: true,
+          analysis: {
+            score: 0,
+            score_justification: "No content could be extracted from the resume file. Please ensure it is a readable PDF or clear image.",
+            summary: "Resume extraction failed.",
+            hiring_verdict: "PASS"
+          }
+        }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
     const userPrompt = `Analyze this candidate comprehensively and provide a detailed, evidence-based assessment.
 
 ## SCORING BREAKDOWN (0-100 total):
@@ -454,9 +471,11 @@ Analyze thoroughly and return ONLY valid JSON. Ensure the score is the exact sum
         console.log(`Attempting analysis with provider: ${p}`);
         analysisText = await createAICompletion(messages, p);
 
-        if (analysisText) {
-          console.log(`Success with ${p}`);
+        if (analysisText && analysisText.length > 10) {
+          console.log(`Success with ${p}, response length: ${analysisText.length}`);
           break; // Stop if successful
+        } else {
+          console.warn(`Provider ${p} returned empty/short response.`);
         }
       } catch (aiError: any) {
         console.error(`Provider ${p} failed:`, aiError.message || aiError);

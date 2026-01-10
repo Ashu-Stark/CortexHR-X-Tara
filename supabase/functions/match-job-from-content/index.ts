@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { createCompletion } from "../_shared/ai-provider.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -146,109 +147,68 @@ serve(async (req) => {
       // If no good match, use AI to determine best fit
       console.log('No strong match found, using AI to determine best fit...');
 
-      const openaiKey = Deno.env.get('OPENAI_API_KEY') || Deno.env.get('openAI');
-      const googleKey = Deno.env.get('GOOGLE_API_KEY') || Deno.env.get('GOOGLE_AI_API_KEY');
-      const lovableApiKey = Deno.env.get('LOVABLE_API_KEY');
+      const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+      const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+      // Import the shared completion function (assuming it's exported)
+      // Since Deno imports are URL based, we need to import it at the top level or via dynamic import if allowed.
+      // However, usually we can't easily dynamic import a relative path in Deno Deploy if not structured right.
+      // But standard Deno allows `import { createCompletion } from '../_shared/ai-provider.ts'` at top.
+      // I will add the import at the top of the file in a separate edit, or just assume I can use it here if I rewrite the file structure.
+      // Actually, let's look at how other functions import it. `parse-resume-ai` imports it.
+      // I will rewrite this block to use the shared function.
 
-      const apiKey = openaiKey || googleKey || lovableApiKey;
-
-      if (apiKey) {
-        try {
-          const jobList = jobs.map(j => `- ${j.title} (${j.department}): ${j.requirements?.substring(0, 100) || 'No requirements listed'}`).join('\n');
-
-          let url = 'https://ai.gateway.lovable.dev/v1/chat/completions';
-          let body: any = {};
-          let headers: any = {
-            'Authorization': `Bearer ${apiKey}`,
-            'Content-Type': 'application/json',
-          };
-
-          if (openaiKey || lovableApiKey) {
-            if (openaiKey) {
-              url = 'https://api.openai.com/v1/chat/completions';
-            }
-            body = {
-              model: openaiKey ? 'gpt-4o-mini' : 'google/gemini-2.5-flash',
-              messages: [
-                {
-                  role: 'system',
-                  content: `You are a job matching expert. Analyze the content and match to:
-${jobList}
+      // First, we need to define the messages.
+      const messages = [
+        {
+          role: 'system',
+          content: `You are a job matching expert. Analyze the content and match to:
+${jobs.map(j => `- ${j.title} (${j.department}): ${j.requirements?.substring(0, 100) || 'No requirements listed'}`).join('\n')}
 
 Respond ONLY with JSON: { "bestJobTitle": "exact title", "confidence": 0-100, "reason": "why" }`
-                },
-                {
-                  role: 'user',
-                  content: `Subject: ${subject || ''}\nBody: ${body?.substring(0, 1000) || ''}\nSource: ${source || ''}\nCandidate: ${candidateName || ''}`
-                }
-              ],
-              temperature: 0,
-            };
-          } else if (googleKey) {
-            // Google API format
-            url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${googleKey}`;
-            delete headers['Authorization']; // Google uses query param
-            body = {
-              contents: [{
-                parts: [{
-                  text: `You are a job matching expert. Analyze the content and match to one of these jobs:
-${jobList}
+        },
+        {
+          role: 'user',
+          content: `Subject: ${subject || ''}\nBody: ${body?.substring(0, 1000) || ''}\nSource: ${source || ''}\nCandidate: ${candidateName || ''}`
+        }
+      ];
 
-Respond ONLY with valid JSON (no markdown formatting): { "bestJobTitle": "exact title", "confidence": <number>, "reason": "string" }.
+      try {
+        console.log('Requesting AI analysis via shared provider...');
 
-Email/Application content:
-Subject: ${subject || ''}
-Body: ${body?.substring(0, 1000) || ''}
-Source: ${source || ''}
-Candidate: ${candidateName || ''}`
-                }]
-              }]
-            };
-          }
+        // Use defaults (Groq -> Mistral -> Google)
+        const aiResponseContent = await createCompletion(messages);
 
-          const aiResponse = await fetch(url, {
-            method: 'POST',
-            headers: headers,
-            body: JSON.stringify(body),
-          });
+        if (aiResponseContent) {
+          console.log('AI Response received.');
 
-          if (aiResponse.ok) {
-            const aiData = await aiResponse.json();
-            let aiContent = '';
-
-            if (openaiKey || lovableApiKey) {
-              aiContent = aiData.choices?.[0]?.message?.content || '';
-            } else {
-              // Google response format
-              aiContent = aiData.candidates?.[0]?.content?.parts?.[0]?.text || '';
-            }
-
-            // Parse AI response
-            const jsonMatch = aiContent.match(/\{[\s\S]*\}/);
-            if (jsonMatch) {
-              const parsed = JSON.parse(jsonMatch[0]);
-              if (parsed.bestJobTitle) {
-                const matchedJob = jobs.find(j =>
-                  j.title.toLowerCase() === parsed.bestJobTitle.toLowerCase()
-                );
-                if (matchedJob && parsed.confidence >= 30) {
-                  bestMatch = {
-                    jobId: matchedJob.id,
-                    jobTitle: matchedJob.title,
-                    department: matchedJob.department,
-                    confidence: parsed.confidence,
-                    matchReason: `AI analysis: ${parsed.reason}`,
-                  };
-                  console.log(`AI match: ${bestMatch.jobTitle} (${bestMatch.confidence}%)`);
-                }
+          // Parse AI response
+          const jsonMatch = aiResponseContent.match(/\{[\s\S]*\}/);
+          if (jsonMatch) {
+            const parsed = JSON.parse(jsonMatch[0]);
+            if (parsed.bestJobTitle) {
+              const matchedJob = jobs.find(j =>
+                j.title.toLowerCase() === parsed.bestJobTitle.toLowerCase()
+              );
+              if (matchedJob && (parsed.confidence || 0) >= 30) {
+                bestMatch = {
+                  jobId: matchedJob.id,
+                  jobTitle: matchedJob.title,
+                  department: matchedJob.department,
+                  confidence: parsed.confidence,
+                  matchReason: `AI analysis: ${parsed.reason}`,
+                };
+                console.log(`AI match: ${bestMatch.jobTitle} (${bestMatch.confidence}%)`);
               }
             }
           } else {
-            console.log("AI Request failed", await aiResponse.text());
+            console.warn('Could not extract JSON from AI response');
           }
-        } catch (aiError) {
-          console.error('AI matching error:', aiError);
+        } else {
+          console.warn('Empty response from AI provider');
         }
+
+      } catch (aiError) {
+        console.error('AI matching error:', aiError);
       }
     }
 

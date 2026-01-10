@@ -8,19 +8,16 @@ const corsHeaders = {
 };
 
 // AI Provider types
-type AIProvider = 'lovable' | 'openai' | 'huggingface' | 'google' | 'groq';
+type AIProvider = 'lovable' | 'openai' | 'huggingface' | 'google' | 'groq' | 'mistral';
 
 // ... lines 13-44 ...
 
 // Detect available provider - checks both OPENAI_API_KEY and openAI (alternate naming)
 function getAvailableProvider(): AIProvider {
-  if (Deno.env.get('GROQ_API_KEY')) return 'groq'; // Prioritize Groq if present (testing) or fallback? user said "backup". 
-  // actually user said "add these... backups". 
-  // If I put it first, it becomes primary. 
-  // I will put it AFTER Google.
-  if (Deno.env.get('OPENAI_API_KEY') || Deno.env.get('openAI')) return 'openai';
-  if (Deno.env.get('GOOGLE_API_KEY') || Deno.env.get('GOOGLE_AI_API_KEY')) return 'google';
   if (Deno.env.get('GROQ_API_KEY')) return 'groq';
+  if (Deno.env.get('MISTRAL_API_KEY')) return 'mistral';
+  if (Deno.env.get('GOOGLE_API_KEY') || Deno.env.get('GOOGLE_AI_API_KEY')) return 'google';
+  if (Deno.env.get('OPENAI_API_KEY') || Deno.env.get('openAI')) return 'openai';
   if (Deno.env.get('HUGGINGFACE_API_KEY')) return 'huggingface';
   if (Deno.env.get('LOVABLE_API_KEY')) return 'lovable';
   throw new Error('No AI provider configured');
@@ -57,7 +54,15 @@ function getProviderConfig(provider: AIProvider) {
       model: 'llama-3.3-70b-versatile',
       getHeaders: () => ({
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${Deno.env.get('GROQ_API_KEY')}`,
+        'Authorization': `Bearer ${Deno.env.get('GROQ_API_KEY')?.split(',')[0]}`, // Handle comma-separated list
+      }),
+    },
+    mistral: {
+      baseUrl: 'https://api.mistral.ai/v1/chat/completions',
+      model: 'mistral-large-latest',
+      getHeaders: () => ({
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${Deno.env.get('MISTRAL_API_KEY')}`,
       }),
     },
     huggingface: {
@@ -138,6 +143,45 @@ async function createAICompletion(messages: AIMessage[], provider: AIProvider): 
     throw lastError || new Error('All Google API keys failed configuration.');
   }
 
+  if (provider === 'groq') {
+    // Implement Key Rotation for Groq
+    const envKeys = Deno.env.get('GROQ_API_KEY') || '';
+    const apiKeys = envKeys.split(',').map(k => k.trim()).filter(k => k.length > 0);
+
+    let lastError: Error | null = null;
+
+    for (const apiKey of apiKeys) {
+      try {
+        const response = await fetch(config.baseUrl, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${apiKey}`
+          },
+          body: JSON.stringify({
+            model: config.model,
+            messages,
+            temperature: 0,
+          }),
+        });
+
+        if (!response.ok) {
+          const errText = await response.text();
+          throw new Error(`Groq API Error ${response.status}: ${errText}`);
+        }
+
+        const data = await response.json();
+        return data.choices?.[0]?.message?.content || '';
+
+      } catch (err: any) {
+        console.warn(`Groq Key ${apiKey.substring(0, 8)}... failed: ${err.message}`);
+        lastError = err;
+        // continue to next key
+      }
+    }
+    throw lastError || new Error('All Groq keys failed');
+  }
+
   if (provider === 'huggingface') {
     const prompt = messages.map(m => {
       if (m.role === 'system') return `<s>[INST] <<SYS>>\n${m.content}\n<</SYS>>\n\n`;
@@ -162,7 +206,7 @@ async function createAICompletion(messages: AIMessage[], provider: AIProvider): 
     return Array.isArray(data) ? data[0]?.generated_text : data.generated_text;
   }
 
-  // OpenAI-compatible (Lovable AI and OpenAI) - using temperature: 0 for deterministic output
+  // OpenAI / Mistral / Lovable (Standard OpenAI Compatible APIs)
   const response = await fetch(config.baseUrl, {
     method: 'POST',
     headers: config.getHeaders(),

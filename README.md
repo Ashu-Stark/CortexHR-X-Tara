@@ -2,7 +2,8 @@
 
 CortexHR is a next-generation Applicant Tracking System (ATS) that automates the entire recruitment lifecycle using advanced AI. From resume parsing to interview scheduling, CortexHR streamlines hiring for modern teams.
 
-![Dashboard Preview](./dashboard-preview.png)
+email - ashutosh16200604@gmail.com
+password -159951
 
 ---
 

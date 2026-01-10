@@ -312,6 +312,9 @@ ${hasGitHub ? '\n## GITHUB BONUS:\nActive GitHub profile with quality repositori
 
 Return ONLY valid JSON without markdown formatting.`;
 
+    // Truncate resume text to prevent context window issues (approx 6-8k tokens)
+    const truncatedResumeText = resumeText ? resumeText.substring(0, 30000) : '';
+
     const userPrompt = `Analyze this candidate comprehensively and provide a detailed, evidence-based assessment.
 
 ## SCORING BREAKDOWN (0-100 total):
@@ -421,7 +424,7 @@ ${jobRequirements ? `- Match against these requirements:\n${jobRequirements}` : 
 ## Candidate Data:
 
 ### Resume Content:
-${resumeText || 'No resume text available - score based on GitHub profile only.'}
+${truncatedResumeText || 'No resume text available - score based on GitHub profile only.'}
 ${githubContent}
 
 Analyze thoroughly and return ONLY valid JSON. Ensure the score is the exact sum of all breakdown points.`;
@@ -430,8 +433,6 @@ Analyze thoroughly and return ONLY valid JSON. Ensure the score is the exact sum
       { role: 'system', content: systemPrompt },
       { role: 'user', content: userPrompt }
     ];
-
-    let analysisText: string = '';
 
     let analysisText: string = '';
 
@@ -457,8 +458,8 @@ Analyze thoroughly and return ONLY valid JSON. Ensure the score is the exact sum
           console.log(`Success with ${p}`);
           break; // Stop if successful
         }
-      } catch (aiError) {
-        console.error(`Provider ${p} failed:`, aiError);
+      } catch (aiError: any) {
+        console.error(`Provider ${p} failed:`, aiError.message || aiError);
         // Continue to next provider
       }
     }

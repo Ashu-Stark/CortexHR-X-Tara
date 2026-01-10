@@ -89,64 +89,79 @@ serve(async (req) => {
       pdfArrayBuffer = await data.arrayBuffer();
     }
 
-    // Strategy: Try Gemini Vision FIRST (most robust for Edge/Deno), then fallback to basic parsing
+    // Strategy: Use PDF.js (Mozilla) - works reliably in Deno Deploy
     let extractedText = "";
 
-    // 1. Attempt Gemini Vision Extraction
-    console.log('Attempting PDF text extraction via Gemini Vision (Primary Strategy)...');
-    const envKeys = Deno.env.get('GOOGLE_API_KEY') || Deno.env.get('GOOGLE_AI_API_KEY') || '';
-    const apiKeys = envKeys.split(',').map(k => k.trim()).filter(k => k.length > 0);
+    console.log('Attempting PDF text extraction via PDF.js...');
 
-    if (apiKeys.length > 0) {
-      // Convert buffer to base64 ONCE
-      const base64Data = btoa(new Uint8Array(pdfArrayBuffer).reduce((data, byte) => data + String.fromCharCode(byte), ''));
+    try {
+      // Import PDF.js dynamically
+      const pdfjsLib = await import('npm:pdfjs-dist@3.11.174');
 
-      for (const apiKey of apiKeys) {
-        try {
-          const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              contents: [{
-                parts: [
-                  { text: "Extract all text from this PDF document verbatim. Return ONLY the extracted text." },
-                  { inline_data: { mime_type: "application/pdf", data: base64Data } }
-                ]
-              }]
-            })
-          });
+      // Disable worker (not available in Edge Runtime)
+      pdfjsLib.GlobalWorkerOptions.workerSrc = '';
 
-          if (response.ok) {
-            const data = await response.json();
-            const visionText = data.candidates?.[0]?.content?.parts?.[0]?.text;
-            if (visionText && visionText.length > 50) {
-              console.log('Gemini Vision extraction successful with key ' + apiKey.substr(0, 5) + '..., length:', visionText.length);
-              extractedText = visionText;
-              break; // Success, exit loop
-            }
-          } else {
-            console.warn(`Gemini Vision failed with key ${apiKey.substr(0, 5)}...: ${await response.text()}`);
-          }
-        } catch (visionError) {
-          console.error(`Gemini Vision error with key ${apiKey.substr(0, 5)}...:`, visionError);
-        }
+      // Load PDF from ArrayBuffer
+      const loadingTask = pdfjsLib.getDocument({ data: new Uint8Array(pdfArrayBuffer) });
+      const pdfDocument = await loadingTask.promise;
+
+      console.log(`PDF loaded: ${pdfDocument.numPages} pages`);
+
+      // Extract text from all pages
+      const textPromises = [];
+      for (let pageNum = 1; pageNum <= pdfDocument.numPages; pageNum++) {
+        textPromises.push(
+          pdfDocument.getPage(pageNum).then(async (page: any) => {
+            const textContent = await page.getTextContent();
+            return textContent.items.map((item: any) => item.str).join(' ');
+          })
+        );
       }
-    } else {
-      console.warn('No Google API key available for Vision extraction.');
-    }
 
-    // 2. Fallback to pdf-parse if Vision failed
-    if (!extractedText || extractedText.trim().length < 50) {
-      console.log('Gemini Vision yielded no results, falling back to npm:pdf-parse...');
-      try {
-        const pdfBuffer = Buffer.from(pdfArrayBuffer);
-        const data = await pdf(pdfBuffer);
-        if (data.text && data.text.length > 50) {
-          extractedText = data.text;
-          console.log('pdf-parse successful, length:', extractedText.length);
+      const pageTexts = await Promise.all(textPromises);
+      extractedText = pageTexts.join('\n\n');
+
+      console.log('PDF.js extraction successful, length:', extractedText.length);
+
+    } catch (pdfjsError: any) {
+      console.error("PDF.js extraction error:", pdfjsError);
+
+      // Fallback to Gemini Vision only if PDF.js fails
+      console.log('PDF.js failed, attempting Gemini Vision fallback...');
+      const envKeys = Deno.env.get('GOOGLE_API_KEY') || Deno.env.get('GOOGLE_AI_API_KEY') || '';
+      const apiKeys = envKeys.split(',').map(k => k.trim()).filter(k => k.length > 0);
+
+      if (apiKeys.length > 0) {
+        const base64Data = btoa(new Uint8Array(pdfArrayBuffer).reduce((data, byte) => data + String.fromCharCode(byte), ''));
+
+        for (const apiKey of apiKeys) {
+          try {
+            const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                contents: [{
+                  parts: [
+                    { text: "Extract all text from this PDF document verbatim. Return ONLY the extracted text." },
+                    { inline_data: { mime_type: "application/pdf", data: base64Data } }
+                  ]
+                }]
+              })
+            });
+
+            if (response.ok) {
+              const data = await response.json();
+              const visionText = data.candidates?.[0]?.content?.parts?.[0]?.text;
+              if (visionText && visionText.length > 50) {
+                console.log('Gemini Vision fallback successful, length:', visionText.length);
+                extractedText = visionText;
+                break;
+              }
+            }
+          } catch (visionError) {
+            console.error(`Gemini Vision error:`, visionError);
+          }
         }
-      } catch (parseError: any) {
-        console.error("pdf-parse error:", parseError);
       }
     }
 

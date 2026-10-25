@@ -42,8 +42,25 @@ export function clampPoints(value: unknown, max: number): number {
   return Math.round(Math.min(Math.max(toPoints(value), 0), max));
 }
 
+/** One category of the breakdown after normalising: points is always a whole number within the category maximum. */
+export type CategoryScore = Record<string, unknown> & { points: number };
+
+/** A normalised analysis: the model's other fields are kept as they came (unknown), score and breakdown are safe. */
+export interface NormalizedAnalysis extends Record<string, unknown> {
+  score: number;
+  score_breakdown: Record<Category, CategoryScore>;
+}
+
+/** The analysis used when the reply cannot be used: no score, flagged for manual review. */
+export interface FallbackAnalysis extends Record<string, unknown> {
+  score: null;
+  needs_manual_review: true;
+  score_breakdown: Record<Category, CategoryScore>;
+  score_justification: string;
+}
+
 export interface NormalizeResult {
-  analysis: Record<string, any>;
+  analysis: NormalizedAnalysis;
   corrections: string[]; // what had to be fixed, for the logs
 }
 
@@ -53,15 +70,16 @@ export interface NormalizeResult {
  * - the overall score is ALWAYS the sum of the clamped categories (so it is within 0-100),
  * - a missing breakdown is an error, not a silent 0.
  */
-export function normalizeAnalysis(raw: Record<string, any>): NormalizeResult {
+export function normalizeAnalysis(raw: Record<string, unknown>): NormalizeResult {
   const corrections: string[] = [];
   const breakdown = raw?.score_breakdown;
   if (!breakdown || typeof breakdown !== "object") throw new Error("AI reply has no score_breakdown");
 
-  const fixed: Record<string, any> = {};
+  const categories = breakdown as Record<string, Record<string, unknown> | undefined>;
+  const fixed = {} as Record<Category, CategoryScore>;
   let total = 0;
   for (const cat of CATEGORIES) {
-    const entry = breakdown[cat] ?? {};
+    const entry = categories[cat] ?? {};
     const original = entry.points;
     const points = clampPoints(original, CATEGORY_MAX[cat]);
     if (typeof original !== "number") corrections.push(`${cat}: points ${JSON.stringify(original)} -> ${points}`);
@@ -78,8 +96,8 @@ export function normalizeAnalysis(raw: Record<string, any>): NormalizeResult {
  * Analysis used when the AI reply cannot be used at all. Marked needs_manual_review with score null:
  * the old fallback gave a "neutral" 50, which ranked unparsed resumes above genuinely weak candidates.
  */
-export function fallbackAnalysis(reason: string): Record<string, any> {
-  const breakdown: Record<string, any> = {};
+export function fallbackAnalysis(reason: string): FallbackAnalysis {
+  const breakdown = {} as Record<Category, CategoryScore>;
   for (const cat of CATEGORIES) breakdown[cat] = { points: 0, justification: "Not assessed - manual review needed" };
   return {
     score: null,

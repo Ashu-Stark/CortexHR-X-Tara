@@ -39,7 +39,7 @@ test("parses JSON with chatter before and after (this used to fall back to a fak
 
 test("keeps nested braces intact", () => {
   const reply = 'Result: {"a": {"b": {"c": 1}}, "d": "{not a brace problem}"}';
-  assert.equal((extractJson(reply) as any).a.b.c, 1);
+  assert.equal((extractJson(reply) as { a: { b: { c: number } } }).a.b.c, 1);
 });
 
 test("empty or non-JSON replies throw (so the caller uses the fallback)", () => {
@@ -97,7 +97,7 @@ test("the score is always the sum of the categories, even when the model's total
 });
 
 test("negative and missing points count as 0", () => {
-  const b = breakdown({ t: -10 }) as any;
+  const b: Record<string, unknown> = breakdown({ t: -10 });
   delete b.job_match;
   const { analysis } = normalizeAnalysis({ score: 0, score_breakdown: b });
   assert.equal(analysis.score_breakdown.technical_skills.points, 0);
@@ -133,7 +133,7 @@ test("fallback marks the resume for manual review instead of inventing a score o
   assert.equal(f.score, null);
   assert.equal(f.needs_manual_review, true);
   assert.match(f.score_justification, /provider timeout/);
-  for (const v of Object.values(f.score_breakdown) as any[]) assert.equal(v.points, 0);
+  for (const v of Object.values(f.score_breakdown)) assert.equal(v.points, 0);
 });
 
 test("resume text is capped before it is sent to the model", () => {

@@ -30,7 +30,11 @@ if (!KEY) {
   process.exit(1);
 }
 
-const data = JSON.parse(readFileSync(join(here, "eval-data.json"), "utf8"));
+type EvalData = {
+  jobs: { id: string; title: string; requirements: string }[];
+  resumes: { id: string; job: string; tier: number; text: string }[];
+};
+const data: EvalData = JSON.parse(readFileSync(join(here, "eval-data.json"), "utf8"));
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 async function complete(system: string, user: string): Promise<string> {
@@ -57,7 +61,8 @@ type Scored = { id: string; job: string; tier: number; scores: (number | null)[]
 const results: Scored[] = [];
 
 for (const r of data.resumes) {
-  const job = data.jobs.find((j: any) => j.id === r.job);
+  const job = data.jobs.find((j) => j.id === r.job);
+  if (!job) throw new Error(`eval-data.json: resume ${r.id} names unknown job ${r.job}`);
   const { systemPrompt, userPrompt } = buildScoringPrompts({
     truncatedResumeText: truncateResume(r.text),
     githubContent: "",
@@ -70,10 +75,10 @@ for (const r of data.resumes) {
       const { analysis, corrections } = normalizeAnalysis(extractJson(await complete(systemPrompt, userPrompt)));
       row.scores.push(analysis.score);
       if (corrections.length) row.corrections++;
-    } catch (e: any) {
+    } catch (e) {
       row.scores.push(null);
       row.fallbacks++;
-      console.log(`  ${r.id} run ${run + 1}: fallback (${e.message})`);
+      console.log(`  ${r.id} run ${run + 1}: fallback (${e instanceof Error ? e.message : String(e)})`);
     }
     await sleep(DELAY_MS);
   }

@@ -1,0 +1,89 @@
+<h2>Summary</h2>
+<p>CortexHR is a team-built AI hiring platform: candidates upload resumes and an LLM scores each one against the job. This
+contribution (branch <code>kriti/scoring-reliability</code>) makes that score <b>trustworthy</b>: it finds and fixes four
+ways a model reply could produce a wrong or fake score, moves the scoring logic into testable functions, adds 21 tests and
+an evaluation harness.</p>
+<div class="stats">
+  <div class="stat"><b>4</b><span>scoring bugs reproduced and fixed</span></div>
+  <div class="stat"><b>21</b><span>unit tests, no API key needed</span></div>
+  <div class="stat"><b>0–100</b><span>score always valid for the database</span></div>
+  <div class="stat"><b>~190</b><span>lines removed from the edge function</span></div>
+</div>
+
+<h2>Where scoring sits</h2>
+<div class="mermaid">
+flowchart LR
+  U[Resume upload] --> P[parse-resume<br/>edge function]
+  P --> X[Text extraction<br/>PDF.js / vision]
+  X --> T[truncateResume]
+  T --> L[LLM with the<br/>production prompt]
+  L --> J[extractJson]
+  J -->|ok| N[normalizeAnalysis<br/>numbers, clamp, sum]
+  J -->|unusable| F[fallbackAnalysis<br/>score null, manual review]
+  N --> D[(ai_score 0-100)]
+  F --> D
+</div>
+<p>The scoring steps (<code>truncateResume</code>, <code>extractJson</code>, <code>normalizeAnalysis</code>, <code>fallbackAnalysis</code>) are new
+pure functions in <code>supabase/functions/_shared/scoring.ts</code>, so they run in Node tests without Deno, Supabase or a model.</p>
+
+<h2>Bugs found and fixed</h2>
+<p>Each was reproduced against the previous code before it was fixed.</p>
+<table>
+<tr><th>#</th><th>Problem</th><th>Before</th><th>After</th></tr>
+<tr><td>1</td><td>Model returns points as strings (<code>"points": "30"</code>)</td><td><code>(a || 0) + (b || 0)</code> concatenated: total became <code>"302012874"</code></td><td>Points converted to numbers first</td></tr>
+<tr><td>2</td><td>A category above its maximum (e.g. 60/35)</td><td>Total 145; the update failed the database rule <code>ai_score BETWEEN 0 AND 100</code></td><td>Each category clamped to its maximum; total always 0–100</td></tr>
+<tr><td>3</td><td>Text around the JSON (<code>Here is the analysis: {…}</code>)</td><td><code>JSON.parse</code> failed and the candidate got a "neutral" <b>50</b></td><td>The JSON object is extracted from the reply</td></tr>
+<tr><td>4</td><td>Any unusable reply</td><td>A fake 50 ranked an unparsed resume above genuinely weak candidates</td><td><code>score: null</code> + <code>needs_manual_review: true</code>; the UI already shows no score for null</td></tr>
+</table>
+<p>Also: the total is always the sum of the categories and a whole number (the column is <code>INTEGER</code>), and the raw model
+reply is no longer logged, because it contains candidates' personal data.</p>
+
+<h2>What changed</h2>
+<table>
+<tr><th>File</th><th>Change</th></tr>
+<tr><td><code>_shared/scoring.ts</code></td><td>New: <code>extractJson</code>, <code>normalizeAnalysis</code>, <code>fallbackAnalysis</code>, <code>truncateResume</code></td></tr>
+<tr><td><code>_shared/scoring-prompt.ts</code></td><td>The scoring prompts moved <b>verbatim</b> out of the edge function, checked byte-for-byte against the old inline template, so the evaluation uses exactly the production prompt</td></tr>
+<tr><td><code>parse-resume/index.ts</code></td><td>Uses the two modules; about 190 lines shorter</td></tr>
+<tr><td><code>tests/*.test.ts</code></td><td>21 unit tests with Node's built-in test runner</td></tr>
+<tr><td><code>scripts/eval-scoring.ts</code>, <code>eval-data.json</code></td><td>Scoring evaluation</td></tr>
+</table>
+
+<h2>Tests</h2>
+<p>Examples of what the 21 tests pin down:</p>
+<ul>
+<li>The score is always the sum of the categories, even when the model's own total is wrong.</li>
+<li>String, negative and missing points are handled (converted, or counted as 0).</li>
+<li>The result always fits the database rule: an integer between 0 and 100.</li>
+<li>A reply without a breakdown is an error, not a silent zero.</li>
+<li>The fallback marks the resume for manual review instead of inventing 50.</li>
+<li>Resume text is capped before it is sent to the model.</li>
+</ul>
+<pre><code>npm test                              # 21 tests, Node 22.6+, no install or API key
+$env:GROQ_API_KEY = "&lt;your key&gt;"      # never commit it
+npm run eval:scoring                  # ~30 API calls</code></pre>
+
+<h2>Evaluation design</h2>
+<p>15 fictional resumes for 3 internship roles (backend, frontend, data), each labelled strong / medium / weak for its role.
+Each is scored twice with the production prompt, model (<code>llama-3.3-70b-versatile</code>) and temperature 0.</p>
+<table>
+<tr><th>Question</th><th>Measure</th></tr>
+<tr><td>Ranking</td><td>For each pair for the same role with different labels (24 pairs), is the stronger resume scored higher?</td></tr>
+<tr><td>Consistency</td><td>Does the same resume get the same score twice?</td></tr>
+<tr><td>Reliability</td><td>How many replies needed corrections or went to manual review?</td></tr>
+</table>
+<div class="note warn">The evaluation has <b>not been run yet</b> (it needs an API key), so no results are claimed here. Run
+<code>npm run eval:scoring</code> and add the numbers from <code>scripts/eval-results.json</code>. Limits: resumes and labels were written by
+one person and the set is small. It checks that scoring is sensible and stable, not that it is fair across groups of people,
+which needs a much larger, carefully designed test.</div>
+
+<h2>Interview questions</h2>
+<dl class="qa">
+<dt>Why was a fallback score of 50 harmful?</dt>
+<dd>It ranked resumes the system failed to read above genuinely weak candidates. Missing data must look missing (null, manual review), not average.</dd>
+<dt>Why move the prompt out verbatim and check it byte-for-byte?</dt>
+<dd>An evaluation is only meaningful if it uses the exact production prompt; any accidental edit would test a different system.</dd>
+<dt>Why clamp each category instead of only the total?</dt>
+<dd>Clamping only the total hides which part was wrong and lets one category crowd out the others; per-category limits keep the breakdown meaningful.</dd>
+<dt>Why not log the raw model reply?</dt>
+<dd>It repeats details from the resume, which is personal data; logs are widely accessible and kept for a long time.</dd>
+</dl>

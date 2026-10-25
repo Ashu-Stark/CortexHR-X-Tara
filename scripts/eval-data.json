@@ -1,0 +1,39 @@
+{
+  "_note": "Fictional resumes written for this evaluation (no real people). tier: 3 = strong, 2 = medium, 1 = weak match for THAT job.",
+  "jobs": [
+    {
+      "id": "backend",
+      "title": "Backend Engineering Intern (Python)",
+      "requirements": "Python, REST APIs (FastAPI or Flask), SQL databases (PostgreSQL), writing automated tests, Git. Nice to have: Docker, CI/CD, caching."
+    },
+    {
+      "id": "frontend",
+      "title": "Frontend Engineering Intern (React)",
+      "requirements": "JavaScript/TypeScript, React, responsive CSS, consuming REST APIs, component testing. Nice to have: Next.js, accessibility, performance optimisation."
+    },
+    {
+      "id": "data",
+      "title": "Data Analyst Intern",
+      "requirements": "SQL, Python (pandas), data cleaning, dashboards (Power BI or Tableau), basic statistics, communicating findings. Nice to have: A/B testing, Excel modelling."
+    }
+  ],
+  "resumes": [
+    {"id": "b1", "job": "backend", "tier": 3, "text": "Aarav Mehta. B.Tech CSE, 2027, CGPA 8.7. Backend Intern at a fintech startup (May-Jul 2026): built 12 FastAPI endpoints for loan applications on PostgreSQL, added Redis caching that cut p95 latency from 420 ms to 90 ms, wrote 140 pytest tests, set up GitHub Actions CI and Docker images. Project: order-matching service in Python with SQLAlchemy and Alembic migrations, 92% test coverage. Skills: Python, FastAPI, Flask, PostgreSQL, Redis, Docker, pytest, Git, Linux."},
+    {"id": "b2", "job": "backend", "tier": 3, "text": "Sneha Rao. B.Tech IT, 2027, CGPA 8.2. Open-source contributor to a Python web framework: 9 merged PRs fixing request validation and adding tests. Project: library management REST API in Flask with PostgreSQL, JWT auth and role-based access, deployed with Docker on a cloud VM; 80 unit tests in CI. Skills: Python, Flask, FastAPI, SQL, PostgreSQL, Docker, Git, unit testing."},
+    {"id": "b3", "job": "backend", "tier": 2, "text": "Rohit Verma. B.Tech CSE, 2028, CGPA 7.6. Project: student attendance system using Python and SQLite with a simple Flask web page. Completed online course on SQL. Participated in one hackathon building a chatbot. Skills: Python, Flask, SQLite, HTML, Git (basic)."},
+    {"id": "b4", "job": "backend", "tier": 2, "text": "Priya Nair. B.Tech ECE, 2027, CGPA 8.0. Project: weather dashboard in Node.js and Express calling a public API, stored results in MongoDB. Coursework: data structures, DBMS. Learning Python. Skills: JavaScript, Node.js, Express, MongoDB, C, Git."},
+    {"id": "b5", "job": "backend", "tier": 1, "text": "Karan Singh. B.Com, 2027. Social media coordinator for college fest; created posters in Canva and managed Instagram page with 2,000 followers. Completed a 4-hour introductory Python video course. Skills: MS Excel, Canva, content writing, basic Python."},
+
+    {"id": "f1", "job": "frontend", "tier": 3, "text": "Ishita Kapoor. B.Tech CSE, 2027, CGPA 8.9. Frontend Intern at an e-commerce company (Jun-Aug 2026): rebuilt checkout pages in React and TypeScript, improved Lighthouse performance score from 58 to 91, added 60 React Testing Library tests, fixed accessibility issues found with axe. Project: Next.js recipe app with server-side rendering, responsive Tailwind CSS, consuming a REST API. Skills: TypeScript, React, Next.js, Tailwind, Jest, React Testing Library, accessibility, Git."},
+    {"id": "f2", "job": "frontend", "tier": 3, "text": "Dev Malhotra. B.Tech IT, 2027, CGPA 8.4. Built and maintains a React component library (14 components) used by 3 college club websites; Storybook docs and Jest tests. Project: expense tracker in React + TypeScript with charts, responsive layout and offline support. Skills: JavaScript, TypeScript, React, CSS, Jest, Storybook, REST APIs, Git."},
+    {"id": "f3", "job": "frontend", "tier": 2, "text": "Ananya Gupta. B.Tech CSE, 2028, CGPA 7.9. Built a personal portfolio website in HTML, CSS and vanilla JavaScript. Following a React course; made a to-do app in React. Skills: HTML, CSS, JavaScript, React (beginner), Figma."},
+    {"id": "f4", "job": "frontend", "tier": 2, "text": "Manish Joshi. B.Tech CSE, 2027, CGPA 7.4. Android app for college canteen orders in Kotlin with Firebase. Some web work: landing page for the app in HTML/CSS and Bootstrap. Skills: Kotlin, Java, Firebase, HTML, CSS, Bootstrap."},
+    {"id": "f5", "job": "frontend", "tier": 1, "text": "Neha Bansal. B.Tech Mechanical, 2027, CGPA 7.1. Designed a go-kart chassis in SolidWorks; ANSYS stress analysis. Member of robotics club. Skills: SolidWorks, ANSYS, AutoCAD, MATLAB."},
+
+    {"id": "d1", "job": "data", "tier": 3, "text": "Ritika Sharma. B.Tech CSE, 2027, CGPA 8.6. Data Analyst Intern at a retail chain (May-Jul 2026): wrote SQL queries over 4 million sales rows, cleaned data with pandas, built a Power BI dashboard used weekly by 12 store managers, ran an A/B test on discount banners and presented a 6% uplift with confidence intervals. Skills: SQL, Python, pandas, Power BI, Excel, statistics, A/B testing."},
+    {"id": "d2", "job": "data", "tier": 3, "text": "Arjun Iyer. B.Sc Statistics, 2027, 82%. Project: analysed 3 years of city air-quality data in Python (pandas, seaborn), found seasonal patterns and wrote a 10-page report; Tableau public dashboard. Kaggle: top 15% in a tabular competition. Skills: Python, pandas, SQL, Tableau, Excel, regression, hypothesis testing."},
+    {"id": "d3", "job": "data", "tier": 2, "text": "Simran Kaur. BBA, 2027. Prepared monthly sales reports in Excel with pivot tables during a 2-month internship at a distributor. Completed a SQL basics certificate. Skills: Excel, pivot tables, SQL (basic), PowerPoint, communication."},
+    {"id": "d4", "job": "data", "tier": 2, "text": "Yash Patel. B.Tech CSE, 2028, CGPA 8.1. Machine learning project: image classifier in PyTorch for plant diseases, 89% accuracy. Some data cleaning with pandas. Skills: Python, PyTorch, NumPy, pandas (basic), Git."},
+    {"id": "d5", "job": "data", "tier": 1, "text": "Tanvi Deshmukh. B.A. English, 2027. Editor of the college magazine; wrote 25 articles and managed a team of 6 writers. Skills: writing, editing, MS Word, communication, event management."}
+  ]
+}
